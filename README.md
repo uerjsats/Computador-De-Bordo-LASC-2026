@@ -462,6 +462,13 @@ Para simplificar a escrita de código e padronizar os prefixos dos logs, cada m�
 
 As mensagens são formatadas no padrão `[MÓDULO][SEVERIDADE] mensagem` (com tamanho máximo de 200 caracteres para garantir compatibilidade com pacotes LoRa).
 
+## Roteamento de Saída Dupla (Dual Output)
+
+Toda chamada à função `debugLog()` envia a informação para duas saídas distintas simultaneamente:
+
+1.  **Conexão Serial (Imediata):** O log é impresso na porta serial via `Serial.println()` instantaneamente. Essa operação é não-bloqueante.
+2.  **Transmissão LoRa (Fila FreeRTOS):** A mensagem é empacotada na estrutura `DebugMsg` e enviada à fila global `xDebugQueue`. O envio para a fila utiliza tempo limite zero (não bloqueante). Se a fila estiver cheia (limite de 16 mensagens), a mensagem mais recente é descartada silenciosamente para evitar que tarefas críticas de telemetria ou leitura de sensores travem.
+
 ---
 
 # Observações para Desenvolvedores
