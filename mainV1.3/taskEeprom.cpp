@@ -6,6 +6,7 @@
 #include "telemetria.h"
 #include "eepromI2C.h"
 #include "taskTelemetria.h"
+#include "DebugLog.h"
 
 
 static unsigned long lastSave = 0;
@@ -55,11 +56,11 @@ void taskEEPROM(void *pvParameters)
 
                 lastSave = millis();
 
-                Serial.println("EEPROM SALVA");
+                DBG_EEPROM(DBG_INFO, "salvo no ender 0x%04X (%d bytes em uso)", currentAddress, currentAddress);
             }
             else if (!memoriaOK)
             {
-                Serial.println("EEPROM LOTADA");
+                DBG_EEPROM(DBG_WARN, "memoria cheia — ender 0x%04X, max 0x%04X", currentAddress, EEPROM_MAX_SIZE);
             }
         }
     }
