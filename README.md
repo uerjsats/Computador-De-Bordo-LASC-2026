@@ -469,6 +469,11 @@ Toda chamada à função `debugLog()` envia a informação para duas saídas dis
 1.  **Conexão Serial (Imediata):** O log é impresso na porta serial via `Serial.println()` instantaneamente. Essa operação é não-bloqueante.
 2.  **Transmissão LoRa (Fila FreeRTOS):** A mensagem é empacotada na estrutura `DebugMsg` e enviada à fila global `xDebugQueue`. O envio para a fila utiliza tempo limite zero (não bloqueante). Se a fila estiver cheia (limite de 16 mensagens), a mensagem mais recente é descartada silenciosamente para evitar que tarefas críticas de telemetria ou leitura de sensores travem.
 
+## Inicialização e Processamento em Segundo Plano
+
+*   **Inicialização:** O sistema de debug deve ser inicializado chamando `debugInit()` antes de qualquer chamada de log. Atualmente, isso é feito na inicialização da tarefa de sensores (`taskSensores.cpp`).
+*   **Envio via Rádio:** A tarefa de telemetria (`taskTelemetria.cpp`) monitora continuamente a fila `xDebugQueue`. Quando o rádio LoRa está ocioso (`lora.isIdle()`), a tarefa retira a mensagem de debug da fila e a transmite via rádio com o identificador de tipo `TYPE_DEBUG`, permitindo a monitoração em tempo real a partir da estação base.
+
 ---
 
 # Observações para Desenvolvedores
