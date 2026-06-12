@@ -1,7 +1,10 @@
 #include "SerialBridge.h"
 #include "NetworkManager.h"
+#include "DebugLog.h"
 
 void sendBufferToSerial(size_t imgSize, uint32_t totalIndex, float missionTime) {
+    DBG_BRIDGE(DBG_INFO, "enviando frame idx=%lu size=%zu t=%.3f", (unsigned long)totalIndex, imgSize, missionTime);
+
     // 1. Envia o Header START para sincronização do Python
     // Formato compatível: START:index:size:totalIndex:missionTime
     Serial.printf("START:%d:%zu:%u:%.3f\n", 

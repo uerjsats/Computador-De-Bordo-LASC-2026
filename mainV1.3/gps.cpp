@@ -1,5 +1,6 @@
 #include "gps.h"
 #include <HardwareSerial.h>
+#include "DebugLog.h"
 
 TinyGPSPlus gps;
 HardwareSerial GPSSerial(1);
@@ -9,6 +10,7 @@ HardwareSerial GPSSerial(1);
 void gpsInit() 
 {
     GPSSerial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
+    DBG_GPS(DBG_INFO, "init serial OK (9600 baud, RX=%d TX=%d)", GPS_RX, GPS_TX);
 }
 
 //Atualiza variáveis para o Main usar

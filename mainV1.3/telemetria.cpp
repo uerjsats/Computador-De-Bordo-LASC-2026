@@ -1,4 +1,5 @@
 #include "telemetria.h"
+#include "DebugLog.h"
 
 #define RF_FREQUENCY 915.0
 #define TX_OUTPUT_POWER 10
@@ -32,11 +33,15 @@ LoraTelemetria::LoraTelemetria(uint8_t myAddress, uint8_t destAddress)
 void LoraTelemetria::init()
 {
     int state = radio.begin(RF_FREQUENCY, LORA_BANDWIDTH, LORA_SPREADING_FACTOR, LORA_CODINGRATE);
-    if(state != RADIOLIB_ERR_NONE) return;
+    if(state != RADIOLIB_ERR_NONE) {
+        DBG_LORA(DBG_ERROR, "radio.begin falhou, codigo=%d", state);
+        return;
+    }
 
     radio.setOutputPower(TX_OUTPUT_POWER);
     radio.setPacketReceivedAction(setFlag);
     radio.startReceive();
+    DBG_LORA(DBG_INFO, "init OK — freq=%.1f BW=%.1f SF=%d", RF_FREQUENCY, LORA_BANDWIDTH, LORA_SPREADING_FACTOR);
 }
 
 void LoraTelemetria::setFlag(void) {
@@ -60,7 +65,10 @@ void LoraTelemetria::process()
         if(len > 0 && len <= BUFFER_SIZE) {
             int state = radio.readData(_rxBuffer, len);
             if(state == RADIOLIB_ERR_NONE) {
+                DBG_LORA(DBG_INFO, "RX %d bytes", len);
                 handleReceived(_rxBuffer, len);
+            } else {
+                DBG_LORA(DBG_WARN, "erro readData RX, codigo=%d", state);
             }
         }
 
@@ -149,9 +157,11 @@ void LoraTelemetria::sendImageRaw(uint8_t* data, uint32_t size)
 
     // limita ao buffer máximo permitido
     if (size > MAX_IMAGE_SIZE) {
-        Serial.println("[LORA] Imagem muito grande.");
+        DBG_LORA(DBG_ERROR, "imagem muito grande (%lu bytes, max %d)", (unsigned long)size, MAX_IMAGE_SIZE);
         return;
     }
+
+    DBG_LORA(DBG_INFO, "sendImageRaw %lu bytes", (unsigned long)size);
 
     // inicia transmissão direta da imagem
     // (JPEG, PNG, framebuffer RAW, etc)
@@ -167,6 +177,8 @@ void LoraTelemetria::sendImage(uint8_t* data, uint16_t size)
     imgTx.index = 0;
     imgTx.total = (size + PACKET_SIZE - 1) / PACKET_SIZE;
     imgTx.ativo = true;
+
+    DBG_LORA(DBG_INFO, "TX imagem iniciada — %u bytes, %u chunks", size, imgTx.total);
 }
 
 void LoraTelemetria::sendImageChunk()
@@ -177,6 +189,7 @@ void LoraTelemetria::sendImageChunk()
 
     if (imgTx.index >= imgTx.total) {
         imgTx.ativo = false;
+        DBG_LORA(DBG_INFO, "TX imagem concluida");
         return;
     }
 
@@ -201,6 +214,7 @@ void LoraTelemetria::sendImageChunk()
     int state = radio.startTransmit(packet, len + 7);
 
     if (state != RADIOLIB_ERR_NONE) {
+        DBG_LORA(DBG_ERROR, "falha no TX chunk imagem, codigo=%d", state);
         imgTx.ativo = false;
         _idle = true;
         return;

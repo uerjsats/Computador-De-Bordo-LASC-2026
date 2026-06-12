@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "NetworkManager.h"
 #include "SerialBridge.h"
+#include "DebugLog.h"
 
 volatile bool imageReady = false;
 
@@ -15,11 +16,10 @@ void taskWiFi(void *pvParameters)
         if (firstCycle)
         {
             firstCycle = false;
-            Serial.println("[WIFI] Aguardando reset da missao...");
             vTaskDelay(pdMS_TO_TICKS(7000));
         }
 
-        Serial.println("[WIFI] Verificando recebimento...");
+        DBG_WIFI(DBG_INFO, "verificando recebimento de imagem...");
 
         bool received = false;
 
@@ -30,12 +30,12 @@ void taskWiFi(void *pvParameters)
 
         if (received)
         {
-            Serial.println("[WIFI] CHEGOU ALGO!");
+            // DBG_WIFI(DBG_INFO, "imagem recebida");
             imageReady = true;
         }
         else
         {
-            Serial.println("[WIFI] Nada recebido");
+            // DBG_WIFI(DBG_INFO, "nenhuma imagem recebida");
         }
 
         vTaskDelay(pdMS_TO_TICKS(3000));

@@ -11,6 +11,7 @@
 #define TYPE_GPS    0x02
 #define TYPE_GYRO   0x03
 #define TYPE_IMAGE  0x10
+#define TYPE_DEBUG  0x20
 
 struct ImageTransaction {
     uint8_t* data;

@@ -7,6 +7,7 @@
 #include "telemetria.h"
 #include "NetworkManager.h"
 #include "slaves.h"
+#include "DebugLog.h"
 
 unsigned long lastSensorSend = 0;
 
@@ -25,9 +26,7 @@ const int RX_WINDOW = 500;
 
 //Callback de recebimento
 void onReceive(uint8_t* data, uint16_t size) {
-    Serial.print("LoRa RX (");
-    Serial.print(size);
-    Serial.println(" bytes):");
+    DBG_LORA(DBG_INFO, "pacote recebido (%u bytes)", size);
 
     for (uint16_t i = 0; i < size; i++) {
         Serial.print(data[i], HEX);
@@ -106,6 +105,17 @@ void taskTelemetria(void *pvParameters)
                     lastSensorSend = now;
                 //}
                 
+            }
+        }
+
+        // ==========================================
+        // Dequeue debug messages and send via LoRa
+        // Non-blocking: only sends when radio is idle
+        // ==========================================
+        DebugMsg dbgMsg;
+        if (lora.isIdle() && xDebugQueue != nullptr) {
+            if (xQueueReceive(xDebugQueue, &dbgMsg, 0) == pdPASS) {
+                lora.sendPacket(dbgMsg.text, TYPE_DEBUG);
             }
         }
 
