@@ -9,11 +9,32 @@
 #define START_BYTE   0x7E
 #define TYPE_SENSOR  0x01
 #define TYPE_IMAGE   0x02
+#define TYPE_COMMAND 0X03
 
-// NSS, DIO1, NRST, BUSY
-SX1262 radio = new Module(8, 14, 12, 13);
+#define ADDR_GROUND  0x01 
+#define ADDR_OBC     0x02 
 
-volatile bool receivedFlag = false;
+// PINAGEM FIXA DA HELTEC V2 (SX1276)
+// NSS: 18, DIO0: 26, NRST: 14, DIO1: 35
+SX1276 radio = new Module(18, 26, 14, 35);
+
+volatile bool operationDone = false; 
+bool isTransmitting = false; 
+
+struct Stats { 
+    uint32_t totalRecebidos = 0; 
+    uint32_t sensorCount = 0; 
+    uint32_t imageCount = 0; 
+    uint32_t commandCount = 0; 
+    uint32_t desconhecidos = 0; 
+    uint32_t startByteInvalido = 0; 
+    uint32_t pacotesIncompletos = 0; 
+    uint32_t comandosEnviados = 0; 
+    float ultimoRSSI = 0; 
+    float ultimoSNR = 0; 
+}; 
+
+Stats stats; 
 
 // ESTRUTURA RECEBIDA
 struct sensorsData {
@@ -31,18 +52,162 @@ struct sensorsData {
 };
 
 // INTERRUPÇÃO
-
 void setFlag() {
-    receivedFlag = true;
+    operationDone = true;
+}
+
+void imprimirEstatisticas();
+
+void enviarComando(const uint8_t* payload, uint8_t payloadLen)
+{ 
+    uint8_t buffer[65]; 
+    uint8_t idx = 0; 
+
+    buffer[idx++] = START_BYTE; 
+    buffer[idx++] = TYPE_COMMAND; 
+    buffer[idx++] = ADDR_GROUND;
+    buffer[idx++] = ADDR_OBC; 
+
+    for (uint8_t i = 0; i < payloadLen; i++) { 
+        buffer[idx++] = payload[i]; 
+    }
+
+    Serial.println(); 
+    Serial.println("---- ENVIANDO COMANDO ----");
+    Serial.print("Tamanho: "); 
+    Serial.println(idx); 
+
+    isTransmitting = true; 
+    operationDone = false; 
+
+    int state = radio.startTransmit(buffer, idx); 
+
+    if(state == RADIOLIB_ERR_NONE) { 
+        Serial.println("Transmissao iniciada com sucesso."); 
+    }
+    else { 
+        Serial.print("Erro ao iniciar TX: "); 
+        Serial.println(state); 
+        isTransmitting = false; 
+        radio.startReceive(); 
+    }
+}
+
+void processarSerial() 
+{ 
+    if(!Serial.available())
+        return; 
+    
+    String linha = Serial.readStringUntil('\n');
+    linha.trim(); 
+
+    if(linha.length() == 0)
+        return; 
+
+    if (linha.equalsIgnoreCase("STATS"))
+    { 
+        imprimirEstatisticas(); 
+        return; 
+    }
+
+    if (linha.startsWith("CMD"))
+    { 
+        String hexPart = linha.substring(3); 
+        hexPart.trim(); 
+
+        uint8_t payload[32]; 
+        uint8_t payloadLen = 0; 
+
+        int start = 0; 
+        while (start < hexPart.length() && payloadLen < sizeof(payload))
+        { 
+            int space = hexPart.indexOf(' ', start);
+            String token; 
+
+            if(space == -1)
+            { 
+                token = hexPart.substring(start); 
+                start = hexPart.length();
+            }
+            else 
+            { 
+                token = hexPart.substring(start, space); 
+                start = space + 1; 
+            }
+            token.trim(); 
+            
+            if(token.length() > 0)
+            { 
+                payload[payloadLen++] = (uint8_t) strtol(token.c_str(), nullptr, 16);
+            }
+        }
+        if (payloadLen == 0)
+        { 
+            Serial.println("Comando vazio. Use: CMD <byte1> <byte2> ...");
+            Serial.println("Exemplo: CMD 01 02"); 
+            return; 
+        }
+
+        enviarComando(payload, payloadLen);
+        stats.comandosEnviados++; 
+        return; 
+    }
+    Serial.println("Comando nao reconhecido."); 
+    Serial.println("Use: CMD <hex bytes> ou STATS"); 
+}
+
+void imprimirEstatisticas() 
+{ 
+    Serial.println();
+    Serial.println("========== DEBUG STATS ==========");
+
+    Serial.print("Total recebidos     : ");
+    Serial.println(stats.totalRecebidos);
+
+    Serial.print("  - Sensores        : ");
+    Serial.println(stats.sensorCount);
+
+    Serial.print("  - Imagem (chunks) : ");
+    Serial.println(stats.imageCount);
+
+    Serial.print("  - Comandos RX     : ");
+    Serial.println(stats.commandCount);
+
+    Serial.print("  - Desconhecidos   : ");
+    Serial.println(stats.desconhecidos);
+
+    Serial.print("Start byte invalido : ");
+    Serial.println(stats.startByteInvalido);
+
+    Serial.print("Pacotes incompletos : ");
+    Serial.println(stats.pacotesIncompletos);
+
+    Serial.print("Comandos enviados   : ");
+    Serial.println(stats.comandosEnviados);
+
+    Serial.print("Ultimo RSSI         : ");
+    Serial.print(stats.ultimoRSSI);
+    Serial.println(" dBm");
+    
+    Serial.print("Ultimo SNR          : ");
+    Serial.print(stats.ultimoSNR);
+    Serial.println(" dB");
+
+    Serial.println("==================================");
 }
 
 // CALLBACK RECEPÇÃO
 void onReceive(uint8_t* data, uint16_t size)
 {
-    if(size < 4)
-        return;
+    if(size < 4) { 
+        stats.pacotesIncompletos++; 
+        return; 
+    }
 
     uint8_t type = data[1];
+ 
+    stats.ultimoRSSI = radio.getRSSI();
+    stats.ultimoSNR = radio.getSNR(); 
 
     Serial.println();
     Serial.println("================================");
@@ -56,11 +221,11 @@ void onReceive(uint8_t* data, uint16_t size)
     Serial.println(data[3]);
 
     Serial.print("RSSI        : ");
-    Serial.print(radio.getRSSI());
+    Serial.print(stats.ultimoRSSI); 
     Serial.println(" dBm");
 
     Serial.print("SNR         : ");
-    Serial.print(radio.getSNR());
+    Serial.print(stats.ultimoSNR); 
     Serial.println(" dB");
 
     Serial.print("Bytes       : ");
@@ -71,18 +236,15 @@ void onReceive(uint8_t* data, uint16_t size)
         if(size < (4 + sizeof(sensorsData)))
         {
             Serial.println("Pacote SENSOR incompleto!");
+            stats.pacotesIncompletos++;
             return;
         }
 
+        stats.sensorCount++; 
+
         sensorsData sensor;
+        memcpy(&sensor, &data[4], sizeof(sensorsData));
 
-        memcpy(
-            &sensor,
-            &data[4],
-            sizeof(sensorsData)
-        );
-
-        // Converte de volta para float
         float temperatura = sensor.temperatura / 100.0f;
         float umidade     = sensor.umidade / 100.0f;
         float altitude    = sensor.altitude / 10.0f;
@@ -99,7 +261,7 @@ void onReceive(uint8_t* data, uint16_t size)
 
         Serial.print("Temperatura : ");
         Serial.print(temperatura, 2);
-        Serial.println(" °C");
+        Serial.println(" C");
 
         Serial.print("Umidade     : ");
         Serial.print(umidade, 2);
@@ -114,7 +276,6 @@ void onReceive(uint8_t* data, uint16_t size)
         Serial.println(" m");
 
         Serial.println();
-
         Serial.println("===== GPS =====");
 
         Serial.print("Latitude    : ");
@@ -127,7 +288,6 @@ void onReceive(uint8_t* data, uint16_t size)
         Serial.println(sensor.sats);
 
         Serial.println();
-
         Serial.println("===== MPU6050 =====");
 
         Serial.print("Accel X     : ");
@@ -144,8 +304,11 @@ void onReceive(uint8_t* data, uint16_t size)
         if(size < 7)
         {
             Serial.println("Pacote IMAGEM inválido!");
+            stats.pacotesIncompletos++;
             return;
         }
+
+        stats.imageCount++; 
 
         uint8_t chunkIndex = data[4];
         uint8_t totalChunk = data[5];
@@ -163,8 +326,26 @@ void onReceive(uint8_t* data, uint16_t size)
         Serial.print(dataLen);
         Serial.println(" bytes");
     }
+    else if(type == TYPE_COMMAND) 
+    {
+        stats.commandCount++;
+
+        Serial.println();
+        Serial.println("===== COMANDO (RX) =====");
+
+        Serial.print("Payload     : ");
+        for (uint16_t i = 4; i < size; i++)
+        {
+            Serial.print("0x");
+            if (data[i] < 0x10) Serial.print("0");
+            Serial.print(data[i], HEX);
+            Serial.print(" ");
+        }
+        Serial.println();
+    }
     else
     {
+        stats.desconhecidos++;
         Serial.print("Tipo desconhecido: ");
         Serial.println(type);
     }
@@ -178,8 +359,15 @@ void setup()
     Serial.begin(115200);
     delay(2000);
 
+    // RESET MANUAL DO CHIP LORA (Obrigatório na Heltec V2)
+    pinMode(14, OUTPUT);
+    digitalWrite(14, LOW);
+    delay(50);
+    digitalWrite(14, HIGH);
+    delay(50);
+
     Serial.println();
-    Serial.println("Inicializando SX1262...");
+    Serial.println("Inicializando SX1276 (Heltec V2)...");
 
     int state = radio.begin(
         RF_FREQUENCY,
@@ -202,26 +390,48 @@ void setup()
     radio.setPacketReceivedAction(setFlag);
     radio.startReceive();
 
-    Serial.println("LoRa pronto!");
+    Serial.println("LoRa pronto! (Estação de Solo Híbrida V2)"); 
+    Serial.println("Digite 'STATS' para ver estatisticas");
+    Serial.println("Digite 'CMD <hex bytes>' para enviar comando ao OBC");
+    Serial.println("Exemplo: CMD 01 05");
 }
 
 // LOOP
-
 void loop()
 {
-    if(!receivedFlag)
+    processarSerial(); 
+
+    if(!operationDone)
     {
         delay(1);
         return;
     }
 
-    receivedFlag = false;
+    operationDone = false;
+
+    if(isTransmitting)
+    { 
+        int state = radio.finishTransmit(); 
+
+        if(state == RADIOLIB_ERR_NONE)
+        { 
+            Serial.println("Comando transmitido com sucesso!"); 
+        }
+        else 
+        { 
+            Serial.print("Erro ao finalizar TX: "); 
+            Serial.println(state); 
+        }
+
+        isTransmitting = false; 
+        radio.startReceive(); 
+        return; 
+    }
 
     uint8_t buffer[256];
-
     int len = radio.getPacketLength();
 
-    if(len <= 0 || len > sizeof(buffer))
+    if(len <= 0 || len > (int)sizeof(buffer))
     {
         radio.startReceive();
         return;
@@ -233,10 +443,12 @@ void loop()
     {
         if(buffer[0] == START_BYTE)
         {
+            stats.totalRecebidos++; 
             onReceive(buffer, len);
         }
         else
         {
+            stats.startByteInvalido++; 
             Serial.println("START_BYTE inválido");
         }
     }

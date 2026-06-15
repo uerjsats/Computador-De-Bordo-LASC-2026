@@ -1,5 +1,6 @@
 #include "SensoresAmbientais.h"
 #include <math.h>
+#include "DebugLog.h"
 
 // Construtor
 SensoresAmbientais::SensoresAmbientais(int dhtPin, int dhtType, byte bmeAddress)
@@ -18,15 +19,18 @@ bool SensoresAmbientais::init(bool initWire)
     }
 
     _dht.begin();
+    DBG_DHT(DBG_INFO, "init OK");
 
     bool bmeOk = _bme.begin(_bmeAddress);
 
     if (!bmeOk)
     {
+        DBG_BME(DBG_ERROR, "falha no init no ender 0x%02X", _bmeAddress);
         _refPressure = NAN;
         return false;
     }
 
+    DBG_BME(DBG_INFO, "init OK no ender 0x%02X", _bmeAddress);
     return true;
 }
 
@@ -38,6 +42,7 @@ bool SensoresAmbientais::lerDHT(float &temperatura, float &umidade)
 
     if (isnan(temperatura) || isnan(umidade))
     {
+        DBG_DHT(DBG_WARN, "falha na leitura — NaN");
         temperatura = NAN;
         umidade = NAN;
         return false;
@@ -53,6 +58,7 @@ bool SensoresAmbientais::lerBME(float &pressao, float &altitude)
 
     if (isnan(pressaoPa) || pressaoPa <= 0)
     {
+        DBG_BME(DBG_WARN, "falha na leitura — pressao invalida");
         pressao = NAN;
         altitude = NAN;
         return false;

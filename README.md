@@ -436,6 +436,46 @@ Estação Base
 
 ---
 
+# Processo de Debug (Depuração)
+
+O sistema possui um mecanismo unificado e estruturado de depuração através do módulo `DebugLog` (`DebugLog.h` / `DebugLog.cpp`). Este módulo fornece logs dinâmicos e controle de severidade para facilitar a identificação de falhas em múltiplos subsistemas rodando sob o FreeRTOS.
+
+## Níveis de Severidade
+
+Os logs são categorizados em três níveis de severidade (definidos no enum `DebugLevel`):
+*   `DBG_INFO` ('I'): Mensagens informacionais sobre o fluxo padrão do sistema.
+*   `DBG_WARN` ('W'): Avisos de comportamento inesperado ou operação degradada (ex: sensor indisponível), mas com o sistema ainda operacional.
+*   `DBG_ERROR` ('E'): Erros críticos onde um módulo ou funcionalidade falhou por completo.
+
+## Macros de Conveniência por Módulo
+
+Para simplificar a escrita de código e padronizar os prefixos dos logs, cada módulo possui sua própria macro dedicada:
+*   `DBG_GPS(...)` (Módulo GPS)
+*   `DBG_MPU(...)` (Módulo MPU6050)
+*   `DBG_DHT(...)` (Sensor DHT22)
+*   `DBG_BME(...)` (Sensor BME280)
+*   `DBG_EEPROM(...)` (Memória EEPROM)
+*   `DBG_LORA(...)` (Comunicação LoRa)
+*   `DBG_WIFI(...)` (Comunicação Wi-Fi)
+*   `DBG_BRIDGE(...)` (Ponte Serial)
+*   `DBG_SLAVES(...)` (Subsistemas Auxiliares)
+
+As mensagens são formatadas no padrão `[MÓDULO][SEVERIDADE] mensagem` (com tamanho máximo de 200 caracteres para garantir compatibilidade com pacotes LoRa).
+
+## Roteamento de Saída Dupla (Dual Output)
+
+Toda chamada à função `debugLog()` envia a informação para duas saídas distintas simultaneamente:
+
+1.  **Conexão Serial (Imediata):** O log é impresso na porta serial via `Serial.println()` instantaneamente. Essa operação é não-bloqueante.
+2.  **Transmissão LoRa (Fila FreeRTOS):** A mensagem é empacotada na estrutura `DebugMsg` e enviada à fila global `xDebugQueue`. O envio para a fila utiliza tempo limite zero (não bloqueante). Se a fila estiver cheia (limite de 16 mensagens), a mensagem mais recente é descartada silenciosamente para evitar que tarefas críticas de telemetria ou leitura de sensores travem.
+
+## Inicialização e Processamento em Segundo Plano
+
+*   **Inicialização:** O sistema de debug deve ser inicializado chamando `debugInit()` antes de qualquer chamada de log. Atualmente, isso é feito na inicialização da tarefa de sensores (`taskSensores.cpp`).
+*   **Envio via Rádio:** A tarefa de telemetria (`taskTelemetria.cpp`) monitora continuamente a fila `xDebugQueue`. Quando o rádio LoRa está ocioso (`lora.isIdle()`), a tarefa retira a mensagem de debug da fila e a transmite via rádio com o identificador de tipo `TYPE_DEBUG`, permitindo a monitoração em tempo real a partir da estação base.
+
+---
+
 # Observações para Desenvolvedores
 
 Antes de modificar o código:

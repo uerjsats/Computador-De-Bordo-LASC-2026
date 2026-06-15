@@ -1,6 +1,7 @@
 #include <HardwareSerial.h>
 #include <Arduino.h>
 #include <cstring>
+#include "DebugLog.h"
 
 HardwareSerial controleSerial(2);
 HardwareSerial supSerial(1);
@@ -36,8 +37,7 @@ void enviarOrdem(uint8_t comando)
             break;
 
         default:
-            Serial.print("Ordem inválida: ");
-            Serial.println(comando);
+            DBG_SLAVES(DBG_WARN, "comando invalido: %u", comando);
     }
 }
 

@@ -2,8 +2,12 @@
 #include "telemetria.h"
 #include <Wire.h>
 #include <Adafruit_MPU6050.h>
+#include "DebugLog.h"
 
 Adafruit_MPU6050 mpu;
+
+//Flag de init — se falhou, mpuUpdate retorna zeros
+static bool _mpuReady = false;
 
 //Configurações da Média Móvel
 const int numLeituras = 10; // Aumente para suavizar mais, diminua para ter menos atraso
@@ -13,7 +17,11 @@ float somaX = 0, somaY = 0, somaZ = 0;
 
 void mpuInit() {
   if (!mpu.begin()) {
-    Serial.println("Erro ao inicializar o MPU6050!");
+    DBG_MPU(DBG_ERROR, "falha no init — ignorando acelerometro");
+    _mpuReady = false;
+  } else {
+    DBG_MPU(DBG_INFO, "init OK");
+    _mpuReady = true;
   }
   
   //Inicializa os arrays com zero
@@ -25,6 +33,14 @@ void mpuInit() {
 }
 
 void mpuUpdate(float &accelX, float &accelY, float &accelZ) {
+  //Se o MPU não inicializou, retorna zeros silenciosamente
+  if (!_mpuReady) {
+    accelX = 0;
+    accelY = 0;
+    accelZ = 0;
+    return;
+  }
+
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 

@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include "esp_wifi.h"
+#include "DebugLog.h"
 
 // ======================================
 // CONTROLE DE MISSÃO
@@ -42,7 +43,7 @@ void setupNetwork()
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
 
-    Serial.print("Conectando ao WiFi");
+    DBG_WIFI(DBG_INFO, "conectando em %s...", ssid);
 
     unsigned long startAttemptTime = millis();
 
@@ -51,17 +52,16 @@ void setupNetwork()
         millis() - startAttemptTime < 15000
     )
     {
-        Serial.print(".");
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 
     if (WiFi.status() == WL_CONNECTED)
     {
-        Serial.println("\nConectado com sucesso.");
+        DBG_WIFI(DBG_INFO, "conectado em %s", ssid);
     }
     else
     {
-        Serial.println("\nFalha na conexão.");
+        DBG_WIFI(DBG_ERROR, "falha de conexao em %s", ssid);
     }
 }
 
@@ -71,9 +71,7 @@ void setupNetwork()
 
 void resetRadio()
 {
-    Serial.println(
-        "\n[ACTION] Resetando Radio e Buffers TCP..."
-    );
+    DBG_WIFI(DBG_WARN, "resetando radio e buffers TCP");
 
     conectedOnce = false;
 
@@ -94,9 +92,7 @@ void resetRadio()
 
     WiFi.begin(ssid, password);
 
-    Serial.println(
-        "[WIFI] Radio reiniciado como novo cliente."
-    );
+    DBG_WIFI(DBG_INFO, "radio reiniciado como novo cliente");
 }
 
 // ======================================
@@ -127,9 +123,7 @@ void monitorConnection()
 
                 firstConnectionEver = false;
 
-                Serial.println(
-                    "[MASTER] Primeira conexão. Resetando servidor..."
-                );
+                DBG_WIFI(DBG_INFO, "primeira conexao — resetando servidor");
 
                 // espera sem travar watchdog
                 unsigned long startWait =
@@ -198,9 +192,7 @@ bool receiveImage()
             millis() - startMs > 5000
         )
         {
-            Serial.println(
-                "[ERR] Servidor nao respondeu."
-            );
+            DBG_WIFI(DBG_ERROR, "servidor nao respondeu (timeout)");
 
             client.stop();
             conectedOnce = false;
@@ -221,9 +213,7 @@ bool receiveImage()
 
     if (!header.startsWith("START:"))
     {
-        Serial.println(
-            "[ERR] Header invalido."
-        );
+        DBG_WIFI(DBG_ERROR, "header invalido recebido");
 
         client.stop();
 
@@ -541,12 +531,12 @@ bool receiveImage()
                 + 1
             ) % 10;
 
+        DBG_WIFI(DBG_INFO, "download de imagem concluido (%zu bytes)", currentImgSize);
+
         return true;
     }
 
-    Serial.println(
-        "\n[ERRO] Download incompleto."
-    );
+    DBG_WIFI(DBG_ERROR, "download incompleto (%zu/%zu bytes)", totalRead, currentImgSize);
 
     client.stop();
 

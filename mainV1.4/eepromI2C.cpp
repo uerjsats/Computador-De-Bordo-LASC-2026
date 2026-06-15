@@ -1,9 +1,12 @@
-#include "eepromi2c.h"
+#include "eepromI2C.h"
+#include "DebugLog.h"
 
 int currentAddress = 10;
 
 //Escrita
 void eepromWriteBytes(uint16_t address, uint8_t* data, uint16_t length) {
+
+    DBG_EEPROM(DBG_INFO, "gravando %u bytes no ender 0x%04X", length, address);
 
     while (length > 0) {
 
@@ -18,7 +21,10 @@ void eepromWriteBytes(uint16_t address, uint8_t* data, uint16_t length) {
             Wire.write(data[i]);
         }
 
-        Wire.endTransmission();
+        uint8_t err = Wire.endTransmission();
+        if (err != 0) {
+            DBG_EEPROM(DBG_ERROR, "erro de gravacao I2C %u no ender 0x%04X", err, address);
+        }
         delay(5);
 
         address += chunk;
@@ -30,6 +36,8 @@ void eepromWriteBytes(uint16_t address, uint8_t* data, uint16_t length) {
 //Leitura
 void eepromReadBytes(uint16_t address, uint8_t* data, uint16_t length) {
 
+    DBG_EEPROM(DBG_INFO, "lendo %u bytes no ender 0x%04X", length, address);
+
     while (length > 0) {
 
         Wire.beginTransmission(EEPROM_I2C_ADDRESS);
@@ -37,7 +45,10 @@ void eepromReadBytes(uint16_t address, uint8_t* data, uint16_t length) {
         Wire.write((uint8_t)(address >> 8));
         Wire.write((uint8_t)(address & 0xFF));
 
-        Wire.endTransmission();
+        uint8_t err = Wire.endTransmission();
+        if (err != 0) {
+            DBG_EEPROM(DBG_ERROR, "erro configuracao leitura I2C %u no ender 0x%04X", err, address);
+        }
 
         uint8_t chunk = min(length, (uint16_t)28);
 

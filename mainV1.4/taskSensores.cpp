@@ -9,6 +9,7 @@
 #include "gps.h"
 #include "mpu.h"
 #include "SensoresAmbientais.h"
+#include "DebugLog.h"
 
 //Fila criada no main.cpp
 extern QueueHandle_t filaTelemetria;
@@ -19,7 +20,12 @@ SensoresAmbientais sensores(48, DHT22, 0X76);
 void initSensores()
 {
     gpsInit();
-    sensores.init(false);
+
+    if (!sensores.init(false)) {
+        DBG_BME(DBG_ERROR, "sensores ambientais degradados — BME280 indisponivel");
+        // continua — não interrompe os demais
+    }
+
     mpuInit();
 }
 
@@ -33,6 +39,9 @@ void lerSensores(float &latitude, float &longitude, int &sats, float &temperatur
 
 void taskSensores(void *pvParameters)
 {
+    //Inicializa o sistema de debug (deve ser chamado antes de qualquer debugLog)
+    debugInit();
+
     //Inicializa sensores
     initSensores();
     sensorsData dados;
@@ -50,6 +59,8 @@ void taskSensores(void *pvParameters)
 
     //MPU
     float accelX = 0, accelY = 0, accelZ = 0;
+
+    DBG_GPS(DBG_INFO, "task de sensores iniciada");
 
     while (true)
     {
