@@ -2,6 +2,7 @@
 #define IMU_SENSOR_H
 
 void mpuInit();
-void mpuUpdate(float &accelX, float &accelY, float &accelZ);
+void mpuUpdate(float &accelX, float &accelY, float &accelZ,
+               float &gyroX,  float &gyroY,  float &gyroZ);
 
 #endif

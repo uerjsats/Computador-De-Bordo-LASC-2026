@@ -29,12 +29,16 @@ void initSensores()
     mpuInit();
 }
 
-void lerSensores(float &latitude, float &longitude, int &sats, float &temperatura, float &umidade, float &pressao, float &altitude, float &accelX, float &accelY, float &accelZ)
+void lerSensores(float &latitude, float &longitude, int &sats,
+                 float &temperatura, float &umidade,
+                 float &pressao, float &altitude,
+                 float &accelX, float &accelY, float &accelZ,
+                 float &gyroX, float &gyroY, float &gyroZ)
 {
     gpsUpdate(latitude, longitude, sats);
     sensores.lerDHT(temperatura, umidade);
     sensores.lerBME(pressao, altitude);
-    mpuUpdate(accelX, accelY, accelZ);
+    mpuUpdate(accelX, accelY, accelZ, gyroX, gyroY, gyroZ);
 }
 
 void taskSensores(void *pvParameters)
@@ -57,8 +61,9 @@ void taskSensores(void *pvParameters)
     //BME
     float pressao = 0, altitude = 0;
 
-    //MPU
+    //MPU — aceleração + giroscópio
     float accelX = 0, accelY = 0, accelZ = 0;
+    float gyroX = 0, gyroY = 0, gyroZ = 0;
 
     DBG_GPS(DBG_INFO, "task de sensores iniciada");
 
@@ -78,25 +83,36 @@ void taskSensores(void *pvParameters)
             altitude,
             accelX,
             accelY,
-            accelZ
+            accelZ,
+            gyroX,
+            gyroY,
+            gyroZ
         );
 
-        //Preenche struct
+        //Timestamp
+        dados.seconds = millis() / 1000;
+
+        //Preenche struct — ordem conforme Dados.md
+        dados.temperatura = temperatura * 100.0f;
+        dados.umidade = umidade * 100.0f;
+        dados.altitude = altitude * 10.0f;
+        dados.pressao = pressao;
+
         dados.latitude = latitude * 10000000.0f;
         dados.longitude = longitude * 10000000.0f;
         dados.sats = sats;
 
-        dados.temperatura = temperatura * 100.0f;
-        dados.umidade = umidade * 100.0f;
-        dados.pressao = pressao;
-        dados.altitude = altitude * 10.0f;
+        // Giroscópio (graus × 100)
+        dados.roll  = gyroX * 100.0f;
+        dados.pitch = gyroY * 100.0f;
+        dados.yaw   = gyroZ * 100.0f;
 
-        dados.accelX = accelX * 100.0f;
-        dados.accelY = accelY * 100.0f;
-        dados.accelZ = accelZ * 100.0f;
-
-        //Timestamp
-        dados.seconds = millis() / 1000;
+        // Dados de bateria/energia — preenchidos com 0 até que
+        // o subsistema de suprimento esteja integrado
+        dados.tempBat1  = 0;
+        dados.tempBat2  = 0;
+        dados.tensao    = 0;
+        dados.corrente  = 0;
 
         //Envia para fila (não bloqueante)
         xQueueSend(filaTelemetria, &dados, 0);
