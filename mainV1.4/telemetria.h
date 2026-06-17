@@ -4,14 +4,13 @@
 #include <Arduino.h>
 #include <RadioLib.h>
 
+// =============================================
+// Protocolo compartilhado com a estação de solo
+// =============================================
+#include "../shared/protocol.h"
+
 #define BUFFER_SIZE 256
 #define MAX_IMAGE_SIZE 5000
-
-#define TYPE_SENSOR 0x01
-#define TYPE_GPS    0x02
-#define TYPE_GYRO   0x03
-#define TYPE_IMAGE  0x10
-#define TYPE_DEBUG  0x20
 
 struct ImageTransaction {
     uint8_t* data;
@@ -22,26 +21,6 @@ struct ImageTransaction {
 };
 
 extern ImageTransaction imgTx;
-
-struct sensorsData {
-    uint32_t seconds;
-    int16_t temperatura;
-    int16_t umidade;
-    uint32_t pressao;
-    int16_t altitude;
-    int32_t latitude;
-    int32_t longitude;
-    uint8_t sats;
-    int16_t accelX;
-    int16_t accelY;
-    int16_t accelZ;
-};
-
-struct respost{
-    sensorsData sensor; //Dados telemetria
-    char controle[64]; //Resposta de controle de atitude
-    char suprimento[64]; //Resposta de suprimento de energia
-};
 
 class LoraTelemetria {
 public:
