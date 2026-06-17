@@ -1,22 +1,19 @@
 #include <RadioLib.h>
 
+// =============================================
+// Protocolo compartilhado com o OBC (mainV1.4)
+// =============================================
+#include "../shared/protocol.h"
+
 // CONFIGURAÇÃO LoRa
 #define RF_FREQUENCY           915.0
 #define LORA_BANDWIDTH         125.0
 #define LORA_SPREADING_FACTOR  7
 #define LORA_CODINGRATE        5
 
-#define START_BYTE   0x7E
-#define TYPE_SENSOR  0x01
-#define TYPE_IMAGE   0x02
-#define TYPE_COMMAND 0X03
-
-#define ADDR_GROUND  0x01 
-#define ADDR_OBC     0x02 
-
-// PINAGEM FIXA DA HELTEC V2 (SX1276)
-// NSS: 18, DIO0: 26, NRST: 14, DIO1: 35
-SX1276 radio = new Module(18, 26, 14, 35);
+// PINAGEM FIXA DA HELTEC V3 (SX1262)
+// NSS: 8, DIO1: 14, NRST: 12, BUSY: 13
+SX1262 radio = new Module(8, 14, 12, 13);
 
 volatile bool operationDone = false; 
 bool isTransmitting = false; 
@@ -26,6 +23,7 @@ struct Stats {
     uint32_t sensorCount = 0; 
     uint32_t imageCount = 0; 
     uint32_t commandCount = 0; 
+    uint32_t debugCount = 0;
     uint32_t desconhecidos = 0; 
     uint32_t startByteInvalido = 0; 
     uint32_t pacotesIncompletos = 0; 
@@ -35,21 +33,6 @@ struct Stats {
 }; 
 
 Stats stats; 
-
-// ESTRUTURA RECEBIDA
-struct sensorsData {
-    uint32_t seconds;
-    int16_t temperatura;
-    int16_t umidade;
-    uint32_t pressao;
-    int16_t altitude;
-    int32_t latitude;
-    int32_t longitude;
-    uint8_t sats;
-    int16_t accelX;
-    int16_t accelY;
-    int16_t accelZ;
-};
 
 // INTERRUPÇÃO
 void setFlag() {
@@ -61,12 +44,7 @@ void imprimirEstatisticas();
 void enviarComando(const uint8_t* payload, uint8_t payloadLen)
 { 
     uint8_t buffer[65]; 
-    uint8_t idx = 0; 
-
-    buffer[idx++] = START_BYTE; 
-    buffer[idx++] = TYPE_COMMAND; 
-    buffer[idx++] = ADDR_GROUND;
-    buffer[idx++] = ADDR_OBC; 
+    uint8_t idx = buildHeader(buffer, TYPE_COMMAND, ADDR_GROUND, ADDR_OBC);
 
     for (uint8_t i = 0; i < payloadLen; i++) { 
         buffer[idx++] = payload[i]; 
@@ -173,6 +151,9 @@ void imprimirEstatisticas()
     Serial.print("  - Comandos RX     : ");
     Serial.println(stats.commandCount);
 
+    Serial.print("  - Debug RX        : ");
+    Serial.println(stats.debugCount);
+
     Serial.print("  - Desconhecidos   : ");
     Serial.println(stats.desconhecidos);
 
@@ -199,12 +180,17 @@ void imprimirEstatisticas()
 // CALLBACK RECEPÇÃO
 void onReceive(uint8_t* data, uint16_t size)
 {
-    if(size < 4) { 
+    if(!validateHeader(data, size)) { 
         stats.pacotesIncompletos++; 
         return; 
     }
 
-    uint8_t type = data[1];
+    uint8_t type = packetType(data);
+    uint8_t src  = packetSrc(data);
+    uint8_t dst  = packetDst(data);
+
+    const uint8_t* payload    = packetPayload(data);
+    uint16_t       payloadLen = packetPayloadSize(size);
  
     stats.ultimoRSSI = radio.getRSSI();
     stats.ultimoSNR = radio.getSNR(); 
@@ -215,10 +201,10 @@ void onReceive(uint8_t* data, uint16_t size)
     Serial.println("================================");
 
     Serial.print("Origem      : ");
-    Serial.println(data[2]);
+    Serial.println(src);
 
     Serial.print("Destino     : ");
-    Serial.println(data[3]);
+    Serial.println(dst);
 
     Serial.print("RSSI        : ");
     Serial.print(stats.ultimoRSSI); 
@@ -233,7 +219,8 @@ void onReceive(uint8_t* data, uint16_t size)
 
     if(type == TYPE_SENSOR)
     {
-        if(size < (4 + sizeof(sensorsData)))
+        sensorsData sensor;
+        if(!parseSensorData(payload, payloadLen, &sensor))
         {
             Serial.println("Pacote SENSOR incompleto!");
             stats.pacotesIncompletos++;
@@ -242,9 +229,7 @@ void onReceive(uint8_t* data, uint16_t size)
 
         stats.sensorCount++; 
 
-        sensorsData sensor;
-        memcpy(&sensor, &data[4], sizeof(sensorsData));
-
+        // Conversões de escala (inverso do que o OBC aplica)
         float temperatura = sensor.temperatura / 100.0f;
         float umidade     = sensor.umidade / 100.0f;
         float altitude    = sensor.altitude / 10.0f;
@@ -252,56 +237,108 @@ void onReceive(uint8_t* data, uint16_t size)
         float latitude    = sensor.latitude / 10000000.0f;
         float longitude   = sensor.longitude / 10000000.0f;
 
-        Serial.println();
-        Serial.println("===== SENSORES =====");
+        float roll_deg    = sensor.roll  / 100.0f;
+        float pitch_deg   = sensor.pitch / 100.0f;
+        float yaw_deg     = sensor.yaw   / 100.0f;
 
-        Serial.print("Tempo ligado: ");
+        float tempBat1    = sensor.tempBat1 / 100.0f;
+        float tempBat2    = sensor.tempBat2 / 100.0f;
+        float tensao      = sensor.tensao   / 100.0f;
+        float corrente    = sensor.corrente / 100.0f;
+
+        // ===== Impressão na ordem especificada em Dados.md =====
+        Serial.println();
+        Serial.println("===== DADOS DE TELEMETRIA =====");
+
+        // 1. Tempo
+        Serial.print("Tempo           : ");
         Serial.print(sensor.seconds);
         Serial.println(" s");
 
-        Serial.print("Temperatura : ");
+        // 2. Temperatura
+        Serial.print("Temperatura     : ");
         Serial.print(temperatura, 2);
         Serial.println(" C");
 
-        Serial.print("Umidade     : ");
+        // 3. Umidade
+        Serial.print("Umidade         : ");
         Serial.print(umidade, 2);
         Serial.println(" %");
 
-        Serial.print("Pressao     : ");
-        Serial.print(sensor.pressao);
-        Serial.println(" Pa");
-
-        Serial.print("Altitude    : ");
+        // 4. Altitude
+        Serial.print("Altitude        : ");
         Serial.print(altitude, 1);
         Serial.println(" m");
 
-        Serial.println();
-        Serial.println("===== GPS =====");
+        // 5. Pressão
+        Serial.print("Pressao         : ");
+        Serial.print(sensor.pressao);
+        Serial.println(" Pa");
 
-        Serial.print("Latitude    : ");
+        // 6. Latitude
+        Serial.print("Latitude        : ");
         Serial.println(latitude, 7);
 
-        Serial.print("Longitude   : ");
+        // 7. Longitude
+        Serial.print("Longitude       : ");
         Serial.println(longitude, 7);
 
-        Serial.print("Satelites   : ");
+        // 8. Satélites
+        Serial.print("Satelites       : ");
         Serial.println(sensor.sats);
 
-        Serial.println();
-        Serial.println("===== MPU6050 =====");
+        // 9. Roll (Giro X)
+        Serial.print("Roll  (Giro X)  : ");
+        Serial.print(roll_deg, 2);
+        Serial.println(" graus");
 
-        Serial.print("Accel X     : ");
-        Serial.println(sensor.accelX);
+        // 10. Pitch (Giro Y)
+        Serial.print("Pitch (Giro Y)  : ");
+        Serial.print(pitch_deg, 2);
+        Serial.println(" graus");
 
-        Serial.print("Accel Y     : ");
-        Serial.println(sensor.accelY);
+        // 11. Yaw (Giro Z)
+        Serial.print("Yaw   (Giro Z)  : ");
+        Serial.print(yaw_deg, 2);
+        Serial.println(" graus");
 
-        Serial.print("Accel Z     : ");
-        Serial.println(sensor.accelZ);
+        // 12. Temperatura Bateria 1
+        Serial.print("Temp Bateria 1  : ");
+        Serial.print(tempBat1, 2);
+        Serial.println(" C");
+
+        // 13. Temperatura Bateria 2
+        Serial.print("Temp Bateria 2  : ");
+        Serial.print(tempBat2, 2);
+        Serial.println(" C");
+
+        // 14. Tensão
+        Serial.print("Tensao          : ");
+        Serial.print(tensao, 2);
+        Serial.println(" V");
+
+        // 15. Corrente
+        Serial.print("Corrente        : ");
+        Serial.print(corrente, 2);
+        Serial.println(" A");
+
+        // 16. Número de Pacotes (local — acumulado no receptor)
+        Serial.print("Num Pacotes     : ");
+        Serial.println(stats.totalRecebidos);
+
+        // 17. RSSI
+        Serial.print("RSSI            : ");
+        Serial.print(stats.ultimoRSSI);
+        Serial.println(" dBm");
+
+        // 18. Tamanho do Pacote
+        Serial.print("Tam Pacote      : ");
+        Serial.print(size);
+        Serial.println(" bytes");
     }
     else if(type == TYPE_IMAGE)
     {
-        if(size < 7)
+        if(payloadLen < 3)
         {
             Serial.println("Pacote IMAGEM inválido!");
             stats.pacotesIncompletos++;
@@ -310,9 +347,9 @@ void onReceive(uint8_t* data, uint16_t size)
 
         stats.imageCount++; 
 
-        uint8_t chunkIndex = data[4];
-        uint8_t totalChunk = data[5];
-        uint8_t dataLen    = data[6];
+        uint8_t chunkIndex = payload[0];
+        uint8_t totalChunk = payload[1];
+        uint8_t dataLen    = payload[2];
 
         Serial.println();
         Serial.println("===== IMAGEM =====");
@@ -326,6 +363,17 @@ void onReceive(uint8_t* data, uint16_t size)
         Serial.print(dataLen);
         Serial.println(" bytes");
     }
+    else if(type == TYPE_DEBUG)
+    {
+        stats.debugCount++;
+
+        char debugMsg[DBG_MSG_MAX_LEN];
+        parseDebugMessage(payload, payloadLen, debugMsg, sizeof(debugMsg));
+
+        Serial.println();
+        Serial.println("===== DEBUG (OBC) =====");
+        Serial.println(debugMsg);
+    }
     else if(type == TYPE_COMMAND) 
     {
         stats.commandCount++;
@@ -334,11 +382,11 @@ void onReceive(uint8_t* data, uint16_t size)
         Serial.println("===== COMANDO (RX) =====");
 
         Serial.print("Payload     : ");
-        for (uint16_t i = 4; i < size; i++)
+        for (uint16_t i = 0; i < payloadLen; i++)
         {
             Serial.print("0x");
-            if (data[i] < 0x10) Serial.print("0");
-            Serial.print(data[i], HEX);
+            if (payload[i] < 0x10) Serial.print("0");
+            Serial.print(payload[i], HEX);
             Serial.print(" ");
         }
         Serial.println();
@@ -346,8 +394,8 @@ void onReceive(uint8_t* data, uint16_t size)
     else
     {
         stats.desconhecidos++;
-        Serial.print("Tipo desconhecido: ");
-        Serial.println(type);
+        Serial.print("Tipo desconhecido: 0x");
+        Serial.println(type, HEX);
     }
 
     Serial.println("================================");
@@ -367,7 +415,7 @@ void setup()
     delay(50);
 
     Serial.println();
-    Serial.println("Inicializando SX1276 (Heltec V2)...");
+    Serial.println("Inicializando SX1262 (Heltec V2)...");
 
     int state = radio.begin(
         RF_FREQUENCY,
