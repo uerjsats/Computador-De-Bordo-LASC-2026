@@ -70,6 +70,14 @@ O sistema coleta continuamente:
 * Aceleração no eixo X
 * Aceleração no eixo Y
 * Aceleração no eixo Z
+* Velocidade angular / Giroscópio (Roll, Pitch, Yaw)
+
+### Medições de Energia e Bateria
+
+* Temperatura da Bateria 1
+* Temperatura da Bateria 2
+* Tensão do barramento
+* Corrente consumida
 
 ---
 
@@ -141,9 +149,11 @@ O sistema utiliza tarefas independentes para garantir:
 
 # Estrutura do Projeto
 
+Todo o código-fonte do Computador de Bordo (OBC) está contido no diretório `mainV1.4/`.
+
 ## Arquivo Principal
 
-### `mainV1.3.ino`
+### `mainV1.4/mainV1.4.ino`
 
 Ponto de entrada do sistema.
 
@@ -373,6 +383,37 @@ Responsável por:
 * Solicitar imagens.
 * Verificar recebimento.
 * Sinalizar disponibilidade de novos frames.
+
+---
+
+# Protocolo Compartilhado
+
+## `shared/protocol.h`
+
+Contém as definições do protocolo de rede e funções auxiliares compartilhadas entre o Computador de Bordo e a Estação de Solo. Centraliza os seguintes elementos para garantir sincronismo nos dados transmitidos via LoRa:
+
+*   **Tipos de Pacote:** `TYPE_SENSOR` (0x01), `TYPE_GPS` (0x02), `TYPE_GYRO` (0x03), `TYPE_IMAGE` (0x10), `TYPE_DEBUG` (0x20), `TYPE_COMMAND` (0x30).
+*   **Endereços de Origem/Destino:** `ADDR_GROUND` (0x01) e `ADDR_OBC` (0x02).
+*   **Estrutura unificada de Sensores:** `struct sensorsData` empacotada com alinhamento de 1 byte (`#pragma pack(push, 1)`).
+*   **Helpers Utilitários:** Funções inline para construir cabeçalho (`buildHeader`), validar tamanho/início (`validateHeader`), ler campos (`packetType`, `packetSrc`, `packetDst`), extrair payload (`packetPayload`, `packetPayloadSize`), e realizar parse seguro (`parseSensorData`, `parseDebugMessage`).
+
+---
+
+# Estação de Solo (Ground Station)
+
+## `LoRaRX/LoRaRX.ino`
+
+Módulo responsável pela recepção de dados transmitidos pelo computador de bordo e monitoramento da missão em tempo real a partir do solo.
+
+Funcionalidades e Responsabilidades:
+*   **Configuração do Rádio:** Opera em placa Heltec V2 utilizando chip SX1276 configurado na frequência de 915.0 MHz.
+*   **Validação de Pacotes:** Utiliza as funções de validação de `shared/protocol.h` para inspecionar a integridade de cabeçalho e início (`START_BYTE`).
+*   **Processamento Multitipos:**
+    *   **Sensores (`TYPE_SENSOR`):** Desempacota e imprime temperatura, umidade, altitude, pressão, coordenadas GPS, satélites, dados de giroscópio (Roll/Pitch/Yaw) e medições de bateria/energia (temperatura das baterias, tensão e corrente).
+    *   **Imagens (`TYPE_IMAGE`):** Rastreia e reporta o recebimento de chunks de imagem fragmentados.
+    *   **Comandos (`TYPE_COMMAND`):** Registra comandos enviados para o OBC.
+    *   **Logs de Depuração (`TYPE_DEBUG`):** Recebe e exibe no monitor serial mensagens de depuração enviadas em tempo real pelo OBC.
+*   **Estatísticas e Diagnósticos:** Computa e exibe contadores detalhados de pacotes (completos, incompletos, desconhecidos), RSSI e SNR de recepção.
 
 ---
 
