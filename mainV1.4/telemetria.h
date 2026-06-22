@@ -7,7 +7,7 @@
 // =============================================
 // Protocolo compartilhado com a estação de solo
 // =============================================
-#include "../shared/protocol.h"
+#include "../LoRaRX/protocol.h"
 
 #define BUFFER_SIZE 256
 #define MAX_IMAGE_SIZE 5000

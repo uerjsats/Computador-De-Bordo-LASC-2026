@@ -3,7 +3,7 @@
 // =============================================
 // Protocolo compartilhado com o OBC (mainV1.4)
 // =============================================
-#include "../shared/protocol.h"
+#include "protocol.h"
 
 // CONFIGURAÇÃO LoRa
 #define RF_FREQUENCY           915.0
