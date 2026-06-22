@@ -195,28 +195,6 @@ void onReceive(uint8_t* data, uint16_t size)
     stats.ultimoRSSI = radio.getRSSI();
     stats.ultimoSNR = radio.getSNR(); 
 
-    Serial.println();
-    Serial.println("================================");
-    Serial.println("       PACOTE RECEBIDO");
-    Serial.println("================================");
-
-    Serial.print("Origem      : ");
-    Serial.println(src);
-
-    Serial.print("Destino     : ");
-    Serial.println(dst);
-
-    Serial.print("RSSI        : ");
-    Serial.print(stats.ultimoRSSI); 
-    Serial.println(" dBm");
-
-    Serial.print("SNR         : ");
-    Serial.print(stats.ultimoSNR); 
-    Serial.println(" dB");
-
-    Serial.print("Bytes       : ");
-    Serial.println(size);
-
     if(type == TYPE_SENSOR)
     {
         sensorsData sensor;
@@ -246,159 +224,115 @@ void onReceive(uint8_t* data, uint16_t size)
         float tensao      = sensor.tensao   / 100.0f;
         float corrente    = sensor.corrente / 100.0f;
 
-        // ===== Impressão na ordem especificada em Dados.md =====
-        Serial.println();
-        Serial.println("===== DADOS DE TELEMETRIA =====");
-
-        // 1. Tempo
-        Serial.print("Tempo           : ");
-        Serial.print(sensor.seconds);
-        Serial.println(" s");
-
-        // 2. Temperatura
-        Serial.print("Temperatura     : ");
-        Serial.print(temperatura, 2);
-        Serial.println(" C");
-
-        // 3. Umidade
-        Serial.print("Umidade         : ");
-        Serial.print(umidade, 2);
-        Serial.println(" %");
-
-        // 4. Altitude
-        Serial.print("Altitude        : ");
-        Serial.print(altitude, 1);
-        Serial.println(" m");
-
-        // 5. Pressão
-        Serial.print("Pressao         : ");
-        Serial.print(sensor.pressao);
-        Serial.println(" Pa");
-
-        // 6. Latitude
-        Serial.print("Latitude        : ");
-        Serial.println(latitude, 7);
-
-        // 7. Longitude
-        Serial.print("Longitude       : ");
-        Serial.println(longitude, 7);
-
-        // 8. Satélites
-        Serial.print("Satelites       : ");
-        Serial.println(sensor.sats);
-
-        // 9. Roll (Giro X)
-        Serial.print("Roll  (Giro X)  : ");
-        Serial.print(roll_deg, 2);
-        Serial.println(" graus");
-
-        // 10. Pitch (Giro Y)
-        Serial.print("Pitch (Giro Y)  : ");
-        Serial.print(pitch_deg, 2);
-        Serial.println(" graus");
-
-        // 11. Yaw (Giro Z)
-        Serial.print("Yaw   (Giro Z)  : ");
-        Serial.print(yaw_deg, 2);
-        Serial.println(" graus");
-
-        // 12. Temperatura Bateria 1
-        Serial.print("Temp Bateria 1  : ");
-        Serial.print(tempBat1, 2);
-        Serial.println(" C");
-
-        // 13. Temperatura Bateria 2
-        Serial.print("Temp Bateria 2  : ");
-        Serial.print(tempBat2, 2);
-        Serial.println(" C");
-
-        // 14. Tensão
-        Serial.print("Tensao          : ");
-        Serial.print(tensao, 2);
-        Serial.println(" V");
-
-        // 15. Corrente
-        Serial.print("Corrente        : ");
-        Serial.print(corrente, 2);
-        Serial.println(" A");
-
-        // 16. Número de Pacotes (local — acumulado no receptor)
-        Serial.print("Num Pacotes     : ");
-        Serial.println(stats.totalRecebidos);
-
-        // 17. RSSI
-        Serial.print("RSSI            : ");
-        Serial.print(stats.ultimoRSSI);
-        Serial.println(" dBm");
-
-        // 18. Tamanho do Pacote
-        Serial.print("Tam Pacote      : ");
-        Serial.print(size);
-        Serial.println(" bytes");
-    }
-    else if(type == TYPE_IMAGE)
-    {
-        if(payloadLen < 3)
-        {
-            Serial.println("Pacote IMAGEM inválido!");
-            stats.pacotesIncompletos++;
-            return;
-        }
-
-        stats.imageCount++; 
-
-        uint8_t chunkIndex = payload[0];
-        uint8_t totalChunk = payload[1];
-        uint8_t dataLen    = payload[2];
-
-        Serial.println();
-        Serial.println("===== IMAGEM =====");
-
-        Serial.print("Chunk       : ");
-        Serial.print(chunkIndex + 1);
-        Serial.print("/");
-        Serial.println(totalChunk);
-
-        Serial.print("Dados       : ");
-        Serial.print(dataLen);
-        Serial.println(" bytes");
-    }
-    else if(type == TYPE_DEBUG)
-    {
-        stats.debugCount++;
-
-        char debugMsg[DBG_MSG_MAX_LEN];
-        parseDebugMessage(payload, payloadLen, debugMsg, sizeof(debugMsg));
-
-        Serial.println();
-        Serial.println("===== DEBUG (OBC) =====");
-        Serial.println(debugMsg);
-    }
-    else if(type == TYPE_COMMAND) 
-    {
-        stats.commandCount++;
-
-        Serial.println();
-        Serial.println("===== COMANDO (RX) =====");
-
-        Serial.print("Payload     : ");
-        for (uint16_t i = 0; i < payloadLen; i++)
-        {
-            Serial.print("0x");
-            if (payload[i] < 0x10) Serial.print("0");
-            Serial.print(payload[i], HEX);
-            Serial.print(" ");
-        }
-        Serial.println();
+        // Formato para plotagem no AbaTrack
+        // Tempo:Temperatura:Umidade:Altitude:Pressao:Latitude:Longitude:Sats:Roll:Pitch:Yaw:TempBat1:TempBat2:Tensao:Corrente:NumPacotes:RSSI:TamPacote
+        Serial.print(sensor.seconds); Serial.print(":");
+        Serial.print(temperatura, 2); Serial.print(":");
+        Serial.print(umidade, 2); Serial.print(":");
+        Serial.print(altitude, 1); Serial.print(":");
+        Serial.print(sensor.pressao); Serial.print(":");
+        Serial.print(latitude, 7); Serial.print(":");
+        Serial.print(longitude, 7); Serial.print(":");
+        Serial.print(sensor.sats); Serial.print(":");
+        Serial.print(roll_deg, 2); Serial.print(":");
+        Serial.print(pitch_deg, 2); Serial.print(":");
+        Serial.print(yaw_deg, 2); Serial.print(":");
+        Serial.print(tempBat1, 2); Serial.print(":");
+        Serial.print(tempBat2, 2); Serial.print(":");
+        Serial.print(tensao, 2); Serial.print(":");
+        Serial.print(corrente, 2); Serial.print(":");
+        Serial.print(stats.totalRecebidos); Serial.print(":");
+        Serial.print(stats.ultimoRSSI); Serial.print(":");
+        Serial.println(size);
     }
     else
     {
-        stats.desconhecidos++;
-        Serial.print("Tipo desconhecido: 0x");
-        Serial.println(type, HEX);
-    }
+        Serial.println();
+        Serial.println("================================");
+        Serial.println("       PACOTE RECEBIDO");
+        Serial.println("================================");
 
-    Serial.println("================================");
+        Serial.print("Origem      : ");
+        Serial.println(src);
+
+        Serial.print("Destino     : ");
+        Serial.println(dst);
+
+        Serial.print("RSSI        : ");
+        Serial.print(stats.ultimoRSSI); 
+        Serial.println(" dBm");
+
+        Serial.print("SNR         : ");
+        Serial.print(stats.ultimoSNR); 
+        Serial.println(" dB");
+
+        Serial.print("Bytes       : ");
+        Serial.println(size);
+
+        if(type == TYPE_IMAGE)
+        {
+            if(payloadLen < 3)
+            {
+                Serial.println("Pacote IMAGEM inválido!");
+                stats.pacotesIncompletos++;
+                return;
+            }
+
+            stats.imageCount++; 
+
+            uint8_t chunkIndex = payload[0];
+            uint8_t totalChunk = payload[1];
+            uint8_t dataLen    = payload[2];
+
+            Serial.println();
+            Serial.println("===== IMAGEM =====");
+
+            Serial.print("Chunk       : ");
+            Serial.print(chunkIndex + 1);
+            Serial.print("/");
+            Serial.println(totalChunk);
+
+            Serial.print("Dados       : ");
+            Serial.print(dataLen);
+            Serial.println(" bytes");
+        }
+        else if(type == TYPE_DEBUG)
+        {
+            stats.debugCount++;
+
+            char debugMsg[DBG_MSG_MAX_LEN];
+            parseDebugMessage(payload, payloadLen, debugMsg, sizeof(debugMsg));
+
+            Serial.println();
+            Serial.println("===== DEBUG (OBC) =====");
+            Serial.println(debugMsg);
+        }
+        else if(type == TYPE_COMMAND) 
+        {
+            stats.commandCount++;
+
+            Serial.println();
+            Serial.println("===== COMANDO (RX) =====");
+
+            Serial.print("Payload     : ");
+            for (uint16_t i = 0; i < payloadLen; i++)
+            {
+                Serial.print("0x");
+                if (payload[i] < 0x10) Serial.print("0");
+                Serial.print(payload[i], HEX);
+                Serial.print(" ");
+            }
+            Serial.println();
+        }
+        else
+        {
+            stats.desconhecidos++;
+            Serial.print("Tipo desconhecido: 0x");
+            Serial.println(type, HEX);
+        }
+
+        Serial.println("================================");
+    }
 }
 
 // SETUP
