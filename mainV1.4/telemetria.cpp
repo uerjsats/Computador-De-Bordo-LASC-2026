@@ -10,7 +10,7 @@
 #define START_BYTE 0x7E
 
 #define PACKET_SIZE 180
-#define MAX_IMAGE_SIZE 50000
+#define MAX_IMAGE_SIZE 80000
 
 SX1262 radio = new Module(8, 14, 12, 13);
 
@@ -197,7 +197,7 @@ void LoraTelemetria::sendImageChunk()
     int remaining = imgTx.size - start;
     int len = (remaining > PACKET_SIZE) ? PACKET_SIZE : remaining;
 
-    uint8_t packet[PACKET_SIZE + 7];
+    uint8_t packet[PACKET_SIZE + 9];
 
     packet[0] = START_BYTE;
     packet[1] = TYPE_IMAGE;
@@ -205,13 +205,13 @@ void LoraTelemetria::sendImageChunk()
     packet[3] = _destAddress;
     packet[4] = (uint8_t)imgTx.index;
     packet[5] = (uint8_t)imgTx.total;
-    packet[6] = (uint8_t)len;
+    packet[8] = (uint8_t)len;
 
-    memcpy(packet + 7, imgTx.data + start, len);
+    memcpy(packet + 9, imgTx.data + start, len);
 
     _idle = false;
 
-    int state = radio.startTransmit(packet, len + 7);
+    int state = radio.startTransmit(packet, len + 9);
 
     if (state != RADIOLIB_ERR_NONE) {
         DBG_LORA(DBG_ERROR, "falha no TX chunk imagem, codigo=%d", state);

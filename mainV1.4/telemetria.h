@@ -10,7 +10,7 @@
 #include "../LoRaRX/protocol.h"
 
 #define BUFFER_SIZE 256
-#define MAX_IMAGE_SIZE 5000
+#define MAX_IMAGE_SIZE 80000
 
 struct ImageTransaction {
     uint8_t* data;
