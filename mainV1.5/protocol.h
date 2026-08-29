@@ -71,6 +71,7 @@ struct sensorsData {
     // 11. Yaw   / Giro Z (graus × 100)
     int16_t yaw;
 
+
     // 12-15. Suprimento de energia (placa escrava addr 1) — strings cruas.
     // Vazias ("") ate a escrava responder; o RX imprime campo em branco.
     // A escrava envia "V,A,P": V -> tensao, A -> corrente (P descartado).
