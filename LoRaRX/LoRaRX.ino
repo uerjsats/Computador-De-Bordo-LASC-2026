@@ -14,7 +14,7 @@
 //Pinagem Fixa Heltec V2(SX1276)
 
 // NSS: 18, DIO1: 26, NRST: 14, BUSY: 35
-SX1262 radio = new Module(8, 14, 12, 13);
+SX1276 radio = new Module(18, 26, 14, 35);
 
 volatile bool operationDone = false; 
 bool isTransmitting = false; 
