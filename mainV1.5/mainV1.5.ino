@@ -1,4 +1,4 @@
-
+#include "slaves.h"
 #include <Arduino.h>
 #include <Wire.h>
 #include "SensoresAmbientais.h"
@@ -23,6 +23,7 @@ QueueHandle_t filaCompleta;
 
 void setup() {
     Serial.begin(115200);
+    serialInit();
 
     Wire.begin(); //Inicializa I2C
     filaTelemetria = xQueueCreate(10, sizeof(sensorsData));

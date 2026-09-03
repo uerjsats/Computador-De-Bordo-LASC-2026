@@ -31,7 +31,6 @@ void taskEEPROM(void *pvParameters)
 
             bool altitudeOK =
                 dados.altitude >= 5000;
-            // se altitude estiver *10
 
             bool memoriaOK =
                 currentAddress + sizeof(sensorsData) < EEPROM_MAX_SIZE;

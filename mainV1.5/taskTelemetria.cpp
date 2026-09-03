@@ -96,7 +96,6 @@ void taskTelemetria(void *pvParameters)
         lora.process();
 
         unsigned long now = millis();
-        preencherResposta(resp);
         if (!lora.isIdle())
         {
             lastRxTime = now;
@@ -130,6 +129,8 @@ void taskTelemetria(void *pvParameters)
 
         if (enviarTelemetria)
         {
+
+            preencherResposta(resp);
             memcpy(
                 &resp.sensor,
                 &ultimoSensor,

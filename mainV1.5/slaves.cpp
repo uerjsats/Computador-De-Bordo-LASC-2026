@@ -15,17 +15,26 @@ void serialInit()
 {
     controleSerial.begin(115200, SERIAL_8N1, 33, 34);
     supSerial.begin(115200, SERIAL_8N1, 19, 20);
+    supSerial.setTimeout(20);
+    controleSerial.setTimeout(20);
 }
 
 void enviarOrdem(uint8_t comando)
 {
     switch (comando)
     {
-        case 1: controleSerial.println("1"); break;
-        case 2: controleSerial.println("2"); break;
-        case 3: controleSerial.println("3"); break;
+        // --- COMANDOS DO CONTROLE DE ATITUDE (ADCS / MECANISMO DE ABERTURA) ---
+        case 0: controleSerial.println("0"); break; // Para os motores do mecanismo
+        case 1: controleSerial.println("1"); break; // Motor 1 Horário (Ex: Abrir porta)
+        case 2: controleSerial.println("2"); break; // Motor 1 Anti-Horário (Ex: Fechar porta)
+        case 3: controleSerial.println("3"); break; // Motor 2 Horário (Ex: Ejetar drone)
+        case 8: controleSerial.println("8"); break; // Motor 2 Anti-Horário (Ex: Recuar ejetor)
+        case 9: controleSerial.println("9"); break; // Solicita status do mecanismo
+        
+        // --- COMANDOS DO SUPRIMENTO DE ENERGIA (EPS) ---
         case 4: supSerial.println("4"); break;
         case 5: supSerial.println("5"); break;
+        
         default:
             DBG_SLAVES(DBG_WARN, "comando invalido: %u", comando);
     }

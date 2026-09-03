@@ -82,7 +82,7 @@ bool BMEinit() {
 
 void bmeUpdate(float &pressao, float &altitude) {
   // Constante da sua altitude real conhecida em metros
-  const float ALTITUDE_REAL_LOCAL = 55.0; 
+  const float ALTITUDE_REAL_LOCAL = 422.0; 
   
   // Guarda a pressão ajustada para o nível do mar da sua região hoje
   static float pressaoNivelDoMarHoje = 101325.0f;
@@ -128,7 +128,7 @@ void bmeUpdate(float &pressao, float &altitude) {
       p_calc = ((p_calc + var1_P + var2_P) >> 8) + (((int64_t)dig_P7) << 4);
       
       // Converte a pressão atual medida de Pascal para Hectopascal (hPa)
-      pressao = (float)p_calc / 256.0f;
+      pressao = (float)p_calc;
       
       // Na primeira leitura, calcula qual deveria ser a pressão ao nível do mar HOJE
       if (primeiraLeitura && pressao > 0.0) {

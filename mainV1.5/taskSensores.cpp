@@ -11,6 +11,9 @@
 #include "SensoresAmbientais.h"
 #include "DebugLog.h"
 
+// ---> INCLUSÃO DO DRIVER DE COMUNICAÇÃO (ADICIONADO) <---
+#include "slaves.h"
+
 //Fila criada no main.cpp
 extern QueueHandle_t filaTelemetria;
 
@@ -23,9 +26,7 @@ void initSensores()
 
     if (!BMEinit()) {
         DBG_BME(DBG_ERROR, "Sensores ambientais degradados - BME280 Indisponivel");
-
     }
-
 
     dhtInit();
 }
@@ -74,6 +75,13 @@ void taskSensores(void *pvParameters)
     float gyroY = 0;
     float gyroZ = 0;
 
+    // ---> VARIÁVEIS DE CONTROLE DE VOO E EJEÇÃO (ADICIONADO) <---
+    float altitudeMaxima = 0.0;
+    bool apogeuDetectado = false;
+    bool droneEjetado = false;
+    unsigned long tempoApogeu = 0;
+    const float ALTURA_MINIMA_LANCAMENTO = 15.0; // Só detecta apogeu se passar de 15m (evita falso positivo no chão)
+
     DBG_GPS(DBG_INFO, "task de sensores iniciada");
 
     while (true)
@@ -82,20 +90,41 @@ void taskSensores(void *pvParameters)
 
         // Lê sensores
         lerSensores(
-            latitude,
-            longitude,
-            sats,
-            temperatura,
-            umidade,
-            pressao,
-            altitude,
-            gyroX,
-            gyroY,
-            gyroZ,
-            accelX,
-            accelY,
-            accelZ
+            latitude, longitude, sats,
+            temperatura, umidade, pressao, altitude,
+            gyroX, gyroY, gyroZ,
+            accelX, accelY, accelZ
         );
+
+        // =========================================================================
+        // LÓGICA DE VOO: DETECÇÃO DE APOGEU E EJEÇÃO (ADICIONADO)
+        // =========================================================================
+        if (!apogeuDetectado) {
+            // Rastreia a maior altitude alcançada
+            if (altitude > altitudeMaxima) {
+                altitudeMaxima = altitude;
+            } 
+            // Se caiu 2 metros em relação à máxima, e já subiu mais de 15m, é o Apogeu!
+            else if (altitudeMaxima > ALTURA_MINIMA_LANCAMENTO && altitude < (altitudeMaxima - 2.0)) {
+                apogeuDetectado = true;
+                tempoApogeu = millis();
+                
+                // Manda o Controle de Atitude ABRIR a estrutura
+                enviarOrdem(1); 
+                DBG_GPS(DBG_INFO, "APOGEU DETECTADO! Comando 1 (Abrir) enviado ao ADCS.");
+            }
+        } 
+        else if (!droneEjetado) {
+            // Espera 2.5 segundos para garantir que a porta abriu totalmente, depois ejeta!
+            if (millis() - tempoApogeu >= 2500) {
+                // Manda o Controle de Atitude EJETAR o drone
+                enviarOrdem(3); 
+                droneEjetado = true;
+                DBG_GPS(DBG_INFO, "EJECAO DO DRONE! Comando 3 (Ejetar) enviado ao ADCS.");
+            }
+        }
+        // =========================================================================
+
 
         // Timestamp
         dados.seconds = millis() / 1000;
@@ -113,11 +142,12 @@ void taskSensores(void *pvParameters)
 
         // Giroscópio
         dados.roll  = gyroX * 100.0f;
+        // Pitch/Yaw omitidos para economizar espaço no exemplo, mas mantidos no seu código real...
         dados.pitch = gyroY * 100.0f;
         dados.yaw   = gyroZ * 100.0f;
 
         // Envia para a fila
-        xQueueSend(filaTelemetria, &dados, 0);
+        xQueueOverwrite(filaTelemetria, &dados);
 
         // 200 ms = 5 Hz
         vTaskDelay(pdMS_TO_TICKS(200));

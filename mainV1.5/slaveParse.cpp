@@ -8,12 +8,12 @@ static void csvToken(const char* csv, int idx, char* out, size_t cap) {
     out[0] = '\0';
     const char* p = csv;
     for (int i = 0; i < idx && p != nullptr; i++) {
-        p = strchr(p, ',');
+        p = strchr(p, ':');
         if (p != nullptr) p++;
     }
     if (p == nullptr) return;
 
-    const char* fim = strchr(p, ',');
+    const char* fim = strchr(p, ':');
     size_t n = (fim != nullptr) ? (size_t)(fim - p) : strlen(p);
     if (n >= cap) n = cap - 1;
     memcpy(out, p, n);
