@@ -1,4 +1,3 @@
-# README.md
 
 # Sistema de Computador de Bordo - LASC 2026
 
